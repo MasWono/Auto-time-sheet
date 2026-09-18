@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b5ed7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Auto Time Sheet">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Auto Time Sheet</title>
+<style>
+:root{--blue:#0b5ed7;--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;--green:#dff7e8;--red:#ffe3e3}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;color:var(--text)}
+.app{max-width:520px;margin:auto;min-height:100vh;padding-bottom:90px}
+header{background:linear-gradient(145deg,#0b5ed7,#1648a5);color:white;padding:24px 18px 22px;border-radius:0 0 24px 24px}
+h1{margin:0;font-size:27px}.sub{opacity:.86;margin-top:5px}
+main{padding:16px}.card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 3px 14px #0b214008}
+.row{display:flex;gap:10px}.row>*{flex:1}
+label{font-size:13px;color:var(--muted);display:block;margin:9px 0 6px}
+input,select,button{font:inherit}input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:white}.secondary{background:#eef4ff;color:var(--blue)}
+.codes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.code{padding:14px 6px;background:#eaf1fb;color:#172033}.code.active{background:var(--blue);color:white}.code small{display:block;font-size:10px;font-weight:500;margin-top:4px}
+.otbox{display:flex;align-items:center;gap:10px}.otbox button{width:45px;height:45px;padding:0;font-size:24px;background:#eef4ff;color:var(--blue)}.otnum{text-align:center;font-weight:700;font-size:18px}
+.total{background:var(--green);border-radius:16px;padding:14px;margin-top:14px}.total strong{font-size:24px}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}.stat:last-child{border-bottom:0}
+.entry{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.entry:last-child{border:0}
+.badge{display:inline-block;border-radius:8px;padding:5px 8px;font-weight:800;font-size:13px;background:#eaf1fb}.delete{background:var(--red);color:#b42318;padding:7px 9px}
+nav{position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:auto;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:5}
+nav button{background:transparent;color:var(--muted)}nav button.active{color:var(--blue)}
+.page{display:none}.page.active{display:block}.hint{font-size:12px;color:var(--muted);line-height:1.45}.danger{color:#b42318}.empty{text-align:center;color:var(--muted);padding:20px}
+</style>
+</head>
+<body>
+<div class="app">
+<header><h1>Auto Time Sheet</h1><div class="sub">Simple • Private • Personal</div></header>
+<main>
+<section id="entryPage" class="page active">
+<div class="card">
+<h2>Daily Entry</h2>
+<div class="row"><div><label>Date</label><input id="date" type="date"></div><div><label>Month / Year</label><input id="monthLabel" disabled></div></div>
+<label>Select Code</label>
+<div class="codes">
+<button class="code active" data-code="P">P<small>Work + GRI</small></button>
+<button class="code" data-code="T">T<small>Travel</small></button>
+<button class="code" data-code="TR">TR<small>Training</small></button>
+<button class="code" data-code="H">H<small>Holiday (0)</small></button>
+</div>
+<label>OT (Hours)</label>
+<div class="otbox"><button id="minus">−</button><input id="ot" class="otnum" type="number" min="0" step="0.5" value="0"><button id="plus">+</button></div>
+<div id="calc" class="total"></div>
+<button id="save" class="primary" style="width:100%;margin-top:12px">Save Entry</button>
+</div>
+<div class="card"><h3>Current Month</h3><div id="miniSummary"></div></div>
+</section>
+
+<section id="summaryPage" class="page">
+<div class="card"><h2>Monthly Summary</h2><div class="row"><input id="sumMonth" type="month"><button id="todayMonth" class="secondary">Current</button></div><div id="summary"></div></div>
+</section>
+
+<section id="settingsPage" class="page">
+<div class="card"><h2>Rate Settings</h2>
+<label>Daily Rate</label><input id="dailyRate" type="number" min="0" step="0.01">
+<label>GRI (Attendance Allowance)</label><input id="gri" type="number" min="0" step="0.01">
+<label>OT Rate (per hour)</label><input id="otRate" type="number" min="0" step="0.01">
+<label>Currency</label><input id="currency" maxlength="5" value="USD">
+<p class="hint">Rates and records are stored only on this device. No name, employee ID, company account, or login is required.</p>
+<button id="saveSettings" class="primary" style="width:100%">Save Settings</button>
+</div>
+<div class="card"><h3>31-Day Rule</h3><p class="hint">If a 31-day month has no H, the daily-rate portion is capped at 30 days. OT recorded on day 31 is shown as carried forward. If the month contains H, the month is calculated normally.</p></div>
+<div class="card"><h3>Data</h3><button id="export" class="secondary" style="width:100%">Export CSV</button><button id="clear" class="delete" style="width:100%;margin-top:8px">Clear All Data</button></div>
+</section>
+</main>
+<nav><button class="active" data-page="entryPage">✎<br><small>Entry</small></button><button data-page="summaryPage">▥<br><small>Summary</small></button><button data-page="settingsPage">⚙<br><small>Settings</small></button></nav>
+</div>
+<script>
+const KEY='ats_v1_records', SET='ats_v1_settings';
+const $=id=>document.getElementById(id);
+const today=new Date();
+$('date').valueAsDate=today;
+$('sumMonth').value=today.toISOString().slice(0,7);
+let settings=JSON.parse(localStorage.getItem(SET)||'{"daily":100,"gri":20,"ot":30,"currency":"USD"}');
+let records=JSON.parse(localStorage.getItem(KEY)||'[]');
+let selected='P';
+
+function money(n){return Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' '+(settings.currency||'USD')}
+function monthOf(d){return d.slice(0,7)}
+function daysInMonth(ym){const [y,m]=ym.split('-').map(Number);return new Date(y,m,0).getDate()}
+function monthHasH(ym){return records.some(r=>monthOf(r.date)===ym && r.code==='H')}
+function computeRecord(r){
+  const ot=Number(r.ot||0);
+  let base=0,gri=0;
+  if(r.code==='P'){base=settings.daily;gri=settings.gri}
+  else if(r.code==='T'||r.code==='TR'){base=settings.daily}
+  return {base,gri,ot:ot*settings.ot,total:base+gri+ot*settings.ot};
+}
+function monthCalc(ym){
+  const rs=records.filter(r=>monthOf(r.date)===ym).sort((a,b)=>a.date.localeCompare(b.date));
+  const hasH=monthHasH(ym), days=daysInMonth(ym);
+  let p=0,t=0,tr=0,h=0,otHours=0,baseRaw=0,gri=0,otPaid=0,otCarry=0;
+  rs.forEach(r=>{
+    const c=computeRecord(r);
+    if(r.code==='P')p++; if(r.code==='T')t++; if(r.code==='TR')tr++; if(r.code==='H')h++;
+    otHours+=Number(r.ot||0);
+    if(days===31 && !hasH && r.date.endsWith('-31')){
+      otCarry+=Number(r.ot||0)*settings.ot;
+      return;
+    }
+    baseRaw+=c.base; gri+=c.gri; otPaid+=c.ot;
+  });
+  let basePaid=baseRaw;
+  // Daily-rate cap: no more than 30 daily-rate days when 31-day month has no H.
+  if(days===31 && !hasH) basePaid=Math.min(baseRaw,30*settings.daily);
+  let total=basePaid+gri+otPaid;
+  return {rs,days,hasH,p,t,tr,h,otHours,basePaid,gri,otPaid,otCarry,total};
+}
+function renderCalc(){
+  const r=computeRecord({code:selected,ot:Number($('ot').value||0)});
+  $('calc').innerHTML='<div>Daily Rate <span style="float:right">'+money(r.base)+'</span></div>'+
+    '<div>GRI <span style="float:right">'+money(r.gri)+'</span></div>'+
+    '<div>OT ('+Number($('ot').value||0)+' × '+money(settings.ot).replace(/ [A-Z]+$/,'')+') <span style="float:right">'+money(r.ot)+'</span></div><hr>'+
+    '<strong>Total <span style="float:right">'+money(r.total)+'</span></strong>';
+  $('monthLabel').value=new Date($('date').value+'T00:00:00').toLocaleString(undefined,{month:'long',year:'numeric'});
+}
+function renderMini(){
+ const ym=monthOf($('date').value), c=monthCalc(ym);
+ $('miniSummary').innerHTML='<div class="stat"><span>P</span><b>'+c.p+' days</b></div><div class="stat"><span>T</span><b>'+c.t+' days</b></div><div class="stat"><span>TR</span><b>'+c.tr+' days</b></div><div class="stat"><span>H</span><b>'+c.h+' days</b></div><div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div><div class="stat"><span>Total</span><b>'+money(c.total)+'</b></div>'+(c.otCarry?'<p class="hint danger">Day 31 OT carried forward: '+money(c.otCarry)+'</p>':'');
+}
+function renderSummary(){
+ const ym=$('sumMonth').value,c=monthCalc(ym);
+ let html='<div style="margin-top:14px"><div class="stat"><span>Calendar days</span><b>'+c.days+'</b></div>'+
+ '<div class="stat"><span>P / Work + GRI</span><b>'+c.p+' days</b></div>'+
+ '<div class="stat"><span>T / Travel</span><b>'+c.t+' days</b></div>'+
+ '<div class="stat"><span>TR / Training</span><b>'+c.tr+' days</b></div>'+
+ '<div class="stat"><span>H / Holiday</span><b>'+c.h+' days</b></div>'+
+ '<div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div>'+
+ '<div class="stat"><span>Daily-rate portion</span><b>'+money(c.basePaid)+'</b></div>'+
+ '<div class="stat"><span>GRI</span><b>'+money(c.gri)+'</b></div>'+
+ '<div class="stat"><span>OT paid this period</span><b>'+money(c.otPaid)+'</b></div>'+
+ '<div class="total"><div>Total Earnings</div><strong>'+money(c.total)+'</strong></div>';
+ if(c.otCarry)html+='<div class="total" style="background:#fff1d6;margin-top:10px"><div>Day 31 OT carried forward</div><strong>'+money(c.otCarry)+'</strong></div>';
+ html+='</div><h3>Entries</h3>';
+ html+=c.rs.length?c.rs.map(r=>'<div class="entry"><div><b>'+r.date+'</b><br><span class="badge">'+r.code+(Number(r.ot||0)?' • OT '+r.ot+'h':'')+'</span></div><button class="delete" onclick="delRec(\''+r.id+'\')">Delete</button></div>').join(''):'<div class="empty">No entries yet.</div>';
+ $('summary').innerHTML=html;
+}
+function save(){
+ const date=$('date').value, ot=Math.max(0,Number($('ot').value||0));
+ records=records.filter(r=>r.date!==date);
+ records.push({id:crypto.randomUUID(),date,code:selected,ot});
+ localStorage.setItem(KEY,JSON.stringify(records));
+ renderMini();renderSummary();alert('Entry saved.');
+}
+function delRec(id){records=records.filter(r=>r.id!==id);localStorage.setItem(KEY,JSON.stringify(records));renderSummary();renderMini()}
+document.querySelectorAll('.code').forEach(b=>b.onclick=()=>{document.querySelectorAll('.code').forEach(x=>x.classList.remove('active'));b.classList.add('active');selected=b.dataset.code;if(selected==='H')$('ot').value=0;renderCalc()});
+$('minus').onclick=()=>{$('ot').value=Math.max(0,Number($('ot').value||0)-.5);renderCalc()}
+$('plus').onclick=()=>{$('ot').value=Number($('ot').value||0)+.5;renderCalc()}
+$('date').onchange=()=>{renderCalc();renderMini()}
+$('ot').oninput=renderCalc;$('save').onclick=save;$('sumMonth').onchange=renderSummary;$('todayMonth').onclick=()=>{$('sumMonth').value=new Date().toISOString().slice(0,7);renderSummary()}
+$('saveSettings').onclick=()=>{settings={daily:Number($('dailyRate').value||0),gri:Number($('gri').value||0),ot:Number($('otRate').value||0),currency:($('currency').value||'USD').toUpperCase()};localStorage.setItem(SET,JSON.stringify(settings));renderCalc();renderMini();renderSummary();alert('Settings saved.')};
+$('export').onclick=()=>{let csv='Date,Code,OT Hours,Daily Rate,GRI,OT Earnings,Total\\n';records.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{let c=computeRecord(r);csv+=`${r.date},${r.code},${r.ot||0},${c.base},${c.gri},${c.ot},${c.total}\\n`});let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='auto-time-sheet.csv';a.click()}
+$('clear').onclick=()=>{if(confirm('Delete all records and settings?')){localStorage.clear();location.reload()}}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(b.dataset.page).classList.add('active');if(b.dataset.page==='summaryPage')renderSummary()});
+$('dailyRate').value=settings.daily;$('gri').value=settings.gri;$('otRate').value=settings.ot;$('currency').value=settings.currency;
+renderCalc();renderMini();renderSummary();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>

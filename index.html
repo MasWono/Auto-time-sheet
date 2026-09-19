@@ -151,6 +151,25 @@ function save(){
  localStorage.setItem(KEY,JSON.stringify(records));
  renderMini();renderSummary();alert('Entry saved.');
 }
+  function editRec(id){
+  const r=records.find(x=>x.id===id);
+  if(!r)return;
+
+  $('date').value=r.date;
+  $('ot').value=Number(r.ot||0);
+
+  document.querySelectorAll('.code').forEach(x=>{
+    x.classList.remove('active');
+    if(x.dataset.code===r.code)x.classList.add('active');
+  });
+
+  selected=r.code;
+
+  renderCalc();
+  renderMini();
+
+  document.querySelector('[data-page="entryPage"]').click();
+}
 function delRec(id){records=records.filter(r=>r.id!==id);localStorage.setItem(KEY,JSON.stringify(records));renderSummary();renderMini()}
 document.querySelectorAll('.code').forEach(b=>b.onclick=()=>{document.querySelectorAll('.code').forEach(x=>x.classList.remove('active'));b.classList.add('active');selected=b.dataset.code;if(selected==='H')$('ot').value=0;renderCalc()});
 $('minus').onclick=()=>{$('ot').value=Math.max(0,Number($('ot').value||0)-.5);renderCalc()}

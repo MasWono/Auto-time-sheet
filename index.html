@@ -151,11 +151,37 @@ let basePaid=baseRaw;
  */
 if(ym.endsWith('-02')){
 
-basePaid=30*settings.daily;
+    const januaryYm = (Number(ym.slice(0,4)) - 1) + '-01';
+
+    const january = monthCalc(januaryYm);
+
+    const februaryFullP = p === days;
+
+    if(februaryFullP){
+
+        // February: full P = guaranteed 30 days
+        basePaid = 30 * settings.daily;
+
+        // GRI January is paid in February
+        gri = january.gri;
+
+    } else {
+
+        // If February contains H, T or TR,
+        // use January's P + T + TR earnings
+        basePaid = january.basePaid;
+
+        // GRI January is paid in February
+        gri = january.gri;
+
+    }
 
 } else if(days===31 && !hasH){
 
-basePaid=Math.min(baseRaw,30*settings.daily);
+    basePaid = Math.min(
+        baseRaw,
+        30 * settings.daily
+    );
 
 }
 

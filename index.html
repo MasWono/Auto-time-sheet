@@ -96,24 +96,87 @@ function computeRecord(r){
   return {base,gri,ot:ot*settings.ot,total:base+gri+ot*settings.ot};
 }
 function monthCalc(ym){
-  const rs=records.filter(r=>monthOf(r.date)===ym).sort((a,b)=>a.date.localeCompare(b.date));
-  const hasH=monthHasH(ym), days=daysInMonth(ym);
-  let p=0,t=0,tr=0,h=0,otHours=0,baseRaw=0,gri=0,otPaid=0,otCarry=0;
-  rs.forEach(r=>{
-    const c=computeRecord(r);
-    if(r.code==='P')p++; if(r.code==='T')t++; if(r.code==='TR')tr++; if(r.code==='H')h++;
-    otHours+=Number(r.ot||0);
-    if(days===31 && !hasH && r.date.endsWith('-31')){
-      otCarry+=Number(r.ot||0)*settings.ot;
-      return;
-    }
-    baseRaw+=c.base; gri+=c.gri; otPaid+=c.ot;
-  });
-  let basePaid=baseRaw;
-  // Daily-rate cap: no more than 30 daily-rate days when 31-day month has no H.
-  if(days===31 && !hasH) basePaid=Math.min(baseRaw,30*settings.daily);
-  let total=basePaid+gri+otPaid;
-  return {rs,days,hasH,p,t,tr,h,otHours,basePaid,gri,otPaid,otCarry,total};
+
+const rs=records.filter(r=>monthOf(r.date)===ym).sort((a,b)=>a.date.localeCompare(b.date));
+
+const hasH=monthHasH(ym), days=daysInMonth(ym);
+
+let p=0,t=0,tr=0,h=0,otHours=0,baseRaw=0,otPaid=0,otCarry=0;
+
+rs.forEach(r=>{
+
+const c=computeRecord(r);
+
+if(r.code==='P')p++;
+if(r.code==='T')t++;
+if(r.code==='TR')tr++;
+if(r.code==='H')h++;
+
+otHours+=Number(r.ot||0);
+
+if(days===31 && !hasH && r.date.endsWith('-31')){
+
+otCarry+=Number(r.ot||0)*settings.ot;
+
+return;
+
+}
+
+baseRaw+=c.base;
+otPaid+=c.ot;
+
+});
+
+/*
+ * GRI is paid in the following month.
+ * Example:
+ * September P days -> GRI appears in October TS.
+ */
+const d=new Date(ym+'-01T00:00:00');
+d.setMonth(d.getMonth()-1);
+
+const prevYm=d.toISOString().slice(0,7);
+
+const prevP=records.filter(r=>
+monthOf(r.date)===prevYm && r.code==='P'
+).length;
+
+const gri=prevP*settings.gri;
+
+let basePaid=baseRaw;
+
+/*
+ * February is always paid as 30 daily-rate days,
+ * even when the actual working days are fewer than 30.
+ */
+if(ym.endsWith('-02')){
+
+basePaid=30*settings.daily;
+
+} else if(days===31 && !hasH){
+
+basePaid=Math.min(baseRaw,30*settings.daily);
+
+}
+
+let total=basePaid+gri+otPaid;
+
+return {
+rs,
+days,
+hasH,
+p,
+t,
+tr,
+h,
+otHours,
+basePaid,
+gri,
+otPaid,
+otCarry,
+total
+};
+
 }
 function renderCalc(){
   const r=computeRecord({code:selected,ot:Number($('ot').value||0)});

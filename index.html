@@ -138,42 +138,27 @@ d.setMonth(d.getMonth()-1);
 const prevYm=d.toISOString().slice(0,7);
 
 const prevP=records.filter(r=>
-monthOf(r.date)===prevYm && r.code==='P'
+  monthOf(r.date)===prevYm && r.code==='P'
 ).length;
 
-const gri=prevP*settings.gri;
+let gri=prevP*settings.gri;
 
 let basePaid=baseRaw;
 
 /*
  * February is always paid as 30 daily-rate days,
- * even when the actual working days are fewer than 30.
+ * even when actual P/work days are fewer than 30.
  */
-const gri=prevP*settings.gri;
-
-let basePaid=baseRaw;
-
-/*
- * February is always paid as 30 daily-rate days,
- * even when the actual working days are fewer than 30.
- */
-
 if(ym.endsWith('-02')){
 
-    // February is always paid as 30 daily-rate days
-    // even when actual P/work days are fewer than 30.
-    basePaid = 30 * settings.daily;
-
-    // GRI from January is paid in February.
-    gri = january.gri;
-
+  basePaid=30*settings.daily;
 
 } else if(days===31 && !hasH){
 
-    basePaid = Math.min(
-        baseRaw,
-        30 * settings.daily
-    );
+  basePaid=Math.min(
+    baseRaw,
+    30*settings.daily
+  );
 
 }
 
@@ -206,7 +191,7 @@ function renderCalc(){
 }
 function renderMini(){
  const ym=monthOf($('date').value), c=monthCalc(ym);
- $('miniSummary').innerHTML='<div class="stat"><span>P</span><b>'+c.p+' days</b></div><div class="stat"><span>T</span><b>'+c.t+' days</b></div><div class="stat"><span>TR</span><b>'+c.tr+' days</b></div><div class="stat"><span>H</span><b>'+c.h+' days</b></div><div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div><div class="stat"><span>Total</span><b>'+money(c.total)+'</b></div>'+(c.otCarry?'<p class="hint danger">Day 31 OT carried forward: '+money(c.otCarry)+'</p>':'');
+ $('#miniSummary').innerHTML='<div class="stat"><span>P</span><b>'+c.p+' days</b></div><div class="stat"><span>T</span><b>'+c.t+' days</b></div><div class="stat"><span>TR</span><b>'+c.tr+' days</b></div><div class="stat"><span>H</span><b>'+c.h+' days</b></div><div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div><div class="stat"><span>Previous GRI</span><b>'+money(c.gri)+'</b></div><div class="stat"><span>Total</span><b>'+money(c.total)+'</b></div>';
 }
 function renderSummary(){
  const ym=$('sumMonth').value,c=monthCalc(ym);
@@ -215,7 +200,7 @@ function renderSummary(){
  '<div class="stat"><span>T / Travel</span><b>'+c.t+' days</b></div>'+
  '<div class="stat"><span>TR / Training</span><b>'+c.tr+' days</b></div>'+
  '<div class="stat"><span>H / Holiday</span><b>'+c.h+' days</b></div>'+
- '<div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div>'+
+ <div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div><div class="stat"><span>Previous GRI</span><b>'+money(c.gri)+'</b></div><div class="stat"><span>Total</span>
  '<div class="stat"><span>Daily-rate portion</span><b>'+money(c.basePaid)+'</b></div>'+
  '<div class="stat"><span>GRI</span><b>'+money(c.gri)+'</b></div>'+
  '<div class="stat"><span>OT paid this period</span><b>'+money(c.otPaid)+'</b></div>'+

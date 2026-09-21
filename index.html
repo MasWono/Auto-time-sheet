@@ -161,7 +161,36 @@ if(ym.endsWith('-02')){
   );
 
 }
+/*
+ * GRI is paid in the following month.
+ * Example:
+ * September P days -> GRI appears in October TS.
+ */
+const d=new Date(ym+'-01T00:00:00');
+d.setMonth(d.getMonth()-1);
 
+const prevYm=d.toISOString().slice(0,7);
+
+const prevP=records.filter(r=>
+  monthOf(r.date)===prevYm && r.code==='P'
+).length;
+
+const gri=prevP*settings.gri;
+
+let basePaid=baseRaw;
+
+/*
+ * February is always paid as 30 daily-rate days,
+ * even when the actual working days are fewer than 30.
+ */
+if(ym.endsWith('-02')){
+  basePaid=30*settings.daily;
+} else if(days===31 && !hasH){
+  basePaid=Math.min(
+    baseRaw,
+    30*settings.daily
+  );
+}
 let total=basePaid+gri+otPaid;
 
 return {

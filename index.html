@@ -149,32 +149,24 @@ let basePaid=baseRaw;
  * February is always paid as 30 daily-rate days,
  * even when the actual working days are fewer than 30.
  */
+const gri=prevP*settings.gri;
+
+let basePaid=baseRaw;
+
+/*
+ * February is always paid as 30 daily-rate days,
+ * even when the actual working days are fewer than 30.
+ */
+
 if(ym.endsWith('-02')){
 
-    const januaryYm = (Number(ym.slice(0,4)) - 1) + '-01';
+    // February is always paid as 30 daily-rate days
+    // even when actual P/work days are fewer than 30.
+    basePaid = 30 * settings.daily;
 
-    const january = monthCalc(januaryYm);
+    // GRI from January is paid in February.
+    gri = january.gri;
 
-    const februaryFullP = p === days;
-
-    if(februaryFullP){
-
-        // February: full P = guaranteed 30 days
-        basePaid = 30 * settings.daily;
-
-        // GRI January is paid in February
-        gri = january.gri;
-
-    } else {
-
-        // If February contains H, T or TR,
-        // use January's P + T + TR earnings
-        basePaid = january.basePaid;
-
-        // GRI January is paid in February
-        gri = january.gri;
-
-    }
 
 } else if(days===31 && !hasH){
 

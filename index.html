@@ -74,7 +74,7 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <label>OT (Hours)</label>
 <div class="otbox">
 <button id="minus" type="button">−</button>
-<input id="ot" class="otnum" type="number" min="0" step="0.5" value="0">
+<input id="ot" class="otnum" type="number" min="0" step="1" value="0">
 <button id="plus" type="button">+</button>
 </div>
 
@@ -334,6 +334,10 @@ function save(){
   }
 
   const ot=Math.max(0,Number($('ot').value||0));
+  if(!Number.isInteger(ot)){
+    alert('OT must be entered in whole hours (1-hour increments).');
+    return;
+  }
 
   records=records.filter(r=>r.date!==date);
 
@@ -388,12 +392,12 @@ document.querySelectorAll('.code').forEach(b=>{
 });
 
 $('minus').onclick=()=>{
-  $('ot').value=Math.max(0,Number($('ot').value||0)-0.5);
+  $('ot').value=Math.max(0,Number($('ot').value||0)-1);
   renderCalc();
 };
 
 $('plus').onclick=()=>{
-  $('ot').value=Number($('ot').value||0)+0.5;
+  $('ot').value=Number($('ot').value||0)+1;
   renderCalc();
 };
 

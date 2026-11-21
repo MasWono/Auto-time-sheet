@@ -103,6 +103,8 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <button id="todayMonth" class="secondary" type="button">Current</button>
 </div>
 <div id="summary"></div>
+<button id="archiveMonth" class="secondary" style="width:100%;margin-top:12px" type="button">Archive & Lock Selected Month</button>
+<div id="archiveStatus" class="hint" style="margin-top:8px"></div>
 </div>
 </section>
 
@@ -151,6 +153,7 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <script>
 const KEY='ats_v1_records';
 const SET='ats_v1_settings';
+const ARCH='ats_v1_archives';
 const $=id=>document.getElementById(id);
 
 function localDateString(d=new Date()){
@@ -170,6 +173,7 @@ $('sumMonth').value=localMonthString(today);
 
 let settings=JSON.parse(localStorage.getItem(SET)||'{"daily":100,"gri":20,"ot":30,"ph":100,"currency":"USD"}');
 let records=JSON.parse(localStorage.getItem(KEY)||'[]');
+let archives=JSON.parse(localStorage.getItem(ARCH)||'{}');
 let selected='P';
 
 function money(n){
@@ -300,14 +304,43 @@ function renderMini(){
     '<div class="stat"><span>Total</span><b>'+money(c.total)+'</b></div>';
 }
 
+function persistArchives(){localStorage.setItem(ARCH,JSON.stringify(archives));}
+
+function archiveMonth(ym,automatic=false){
+  if(!ym || archives[ym]) return false;
+  const monthRecords=records.filter(r=>monthOf(r.date)===ym);
+  if(!monthRecords.length) return false;
+  archives[ym]={month:ym,archivedAt:new Date().toISOString(),records:JSON.parse(JSON.stringify(records)),settings:JSON.parse(JSON.stringify(settings))};
+  persistArchives();
+  return true;
+}
+
+function autoArchivePastMonths(){
+  const current=localMonthString();
+  const months=[...new Set(records.map(r=>monthOf(r.date)))].sort();
+  let changed=false;
+  months.forEach(ym=>{if(ym<current && !archives[ym]) changed=archiveMonth(ym,true);});
+  if(changed)persistArchives();
+}
+
+function getMonthView(ym){
+  const a=archives[ym];
+  if(!a)return monthCalc(ym);
+  const liveRecords=records,liveSettings=settings;
+  try{records=a.records;settings=a.settings;return monthCalc(ym);}
+  finally{records=liveRecords;settings=liveSettings;}
+}
+
 function renderSummary(){
   const ym=$('sumMonth').value;
   if(!ym)return;
 
-  const c=monthCalc(ym);
+  const archived=!!archives[ym];
+  const c=getMonthView(ym);
 
   let html=
     '<div style="margin-top:14px">'+
+    (archived?'<div class="notice">ARCHIVED & LOCKED — calculations and settings are saved for this month.</div>':'')+
     '<div class="stat"><span>Calendar days</span><b>'+c.days+'</b></div>'+
     '<div class="stat"><span>P / Work + GRI</span><b>'+c.p+' days</b></div>'+
     '<div class="stat"><span>T / Travel</span><b>'+c.t+' days</b></div>'+
@@ -334,15 +367,19 @@ function renderSummary(){
       '<div><b>'+r.date+'</b><br><span class="badge">'+r.code+(r.ph?' + PH':'')+
       (Number(r.ot||0)?' • OT '+r.ot+'h':'')+
       '</span></div>'+
-      '<div class="entry-actions">'+
+      (archived?'<div class="hint">Locked</div>':'<div class="entry-actions">'+
       '<button class="edit" type="button" onclick="editRec(\''+r.id+'\')">Edit</button>'+
       '<button class="delete" type="button" onclick="delRec(\''+r.id+'\')">Delete</button>'+
-      '</div></div>'
+      '</div>')+'</div>'
     ).join('')
     : '<div class="empty">No entries yet.</div>';
 
   $('summary').innerHTML=html;
+  $('archiveStatus').textContent=archived?'This month is archived. Entries and calculations are locked.':'Not archived. Archive manually, or it will be archived automatically after the month ends.';
+  $('archiveMonth').disabled=archived;
+  $('archiveMonth').textContent=archived?'Month Archived & Locked':'Archive & Lock Selected Month';
 }
+
 
 function save(){
   const date=$('date').value;
@@ -351,6 +388,7 @@ function save(){
     return;
   }
 
+  if(archives[monthOf(date)]){alert('This month is archived and locked. Entry changes are not allowed.');return;}
   const ot=Math.max(0,Number($('ot').value||0));
   if(!Number.isInteger(ot)){
     alert('OT must be entered in whole hours (1-hour increments).');
@@ -376,6 +414,7 @@ function save(){
 function editRec(id){
   const r=records.find(x=>x.id===id);
   if(!r)return;
+  if(archives[monthOf(r.date)]){alert('This month is archived and locked.');return;}
 
   $('date').value=r.date;
   $('ot').value=Number(r.ot||0);
@@ -395,6 +434,8 @@ function editRec(id){
 }
 
 function delRec(id){
+  const target=records.find(x=>x.id===id);
+  if(target && archives[monthOf(target.date)]){alert('This month is archived and locked.');return;}
   records=records.filter(r=>r.id!==id);
   localStorage.setItem(KEY,JSON.stringify(records));
   renderSummary();
@@ -441,6 +482,16 @@ function updatePHOption(){
 updatePHOption();
 $('save').onclick=save;
 $('sumMonth').onchange=renderSummary;
+
+$('archiveMonth').onclick=()=>{
+  const ym=$('sumMonth').value;
+  if(!ym){alert('Select a month first.');return;}
+  if(archives[ym]){alert('This month is already archived.');return;}
+  if(!records.some(r=>monthOf(r.date)===ym)){alert('There are no entries in this month to archive.');return;}
+  if(confirm('Archive and LOCK '+ym+'? Saved records, settings, and calculations for this month will be frozen. Changes will require explicit permission and a future unlock process.')){
+    archiveMonth(ym,false);renderSummary();alert('Month archived and locked.');
+  }
+};
 
 $('todayMonth').onclick=()=>{
   $('sumMonth').value=localMonthString();
@@ -489,6 +540,7 @@ $('clear').onclick=()=>{
   if(confirm('Delete all records and settings?')){
     localStorage.removeItem(KEY);
     localStorage.removeItem(SET);
+    localStorage.removeItem(ARCH);
     location.reload();
   }
 };
@@ -505,6 +557,7 @@ document.querySelectorAll('nav button').forEach(b=>{
   };
 });
 
+autoArchivePastMonths();
 $('dailyRate').value=settings.daily;
 $('gri').value=settings.gri;
 $('otRate').value=settings.ot;

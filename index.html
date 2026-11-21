@@ -72,7 +72,12 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <button class="code" data-code="PH">PH<small>Public Holiday</small></button>
 </div>
 
-<label style="margin-top:10px"><input id="addPH" type="checkbox" style="width:auto"> Also Public Holiday (PH) — additional PH Rate</label>
+<div id="phOption" style="display:block;background:#fff8e8;border:1px solid #f0d69a;border-radius:12px;padding:12px;margin-top:10px;margin-bottom:10px">
+<label style="margin:0;display:flex;align-items:center;gap:10px;color:#172033;font-weight:700">
+<input id="addPH" type="checkbox" style="width:22px;height:22px;flex:0 0 auto;margin:0">
+<span>Add Public Holiday (PH) — additional PH Rate</span>
+</label><div class="hint" style="margin-top:6px">Available when code P is selected. P keeps Daily Rate and GRI; PH adds PH Rate.</div>
+</div>
 <label>OT (Hours)</label>
 <div class="otbox">
 <button id="minus" type="button">−</button>
@@ -326,7 +331,7 @@ function renderSummary(){
   html+=c.rs.length
     ? c.rs.map(r=>
       '<div class="entry">'+
-      '<div><b>'+r.date+'</b><br><span class="badge">'+r.code+
+      '<div><b>'+r.date+'</b><br><span class="badge">'+r.code+(r.ph?' + PH':'')+
       (Number(r.ot||0)?' • OT '+r.ot+'h':'')+
       '</span></div>'+
       '<div class="entry-actions">'+
@@ -375,13 +380,14 @@ function editRec(id){
   $('date').value=r.date;
   $('ot').value=Number(r.ot||0);
   $('addPH').checked=!!r.ph;
+  updatePHOption();
 
   document.querySelectorAll('.code').forEach(x=>{
     x.classList.toggle('active',x.dataset.code===r.code);
   });
 
   selected=r.code;
-  $('addPH').disabled=(selected==='H'||selected==='PH');
+  updatePHOption();
   renderCalc();
   renderMini();
 
@@ -403,7 +409,7 @@ document.querySelectorAll('.code').forEach(b=>{
 
     if(selected==='H'||selected==='PH')$('ot').value=0;
     $('addPH').checked=false;
-    $('addPH').disabled=(selected==='H'||selected==='PH');
+    updatePHOption();
 
     renderCalc();
   };
@@ -425,8 +431,14 @@ $('date').onchange=()=>{
 };
 
 $('ot').oninput=renderCalc;
-$('addPH').disabled=false;
 $('addPH').onchange=renderCalc;
+function updatePHOption(){
+  const eligible=(selected==='P');
+  $('phOption').style.display=eligible?'block':'none';
+  $('addPH').disabled=!eligible;
+  if(!eligible) $('addPH').checked=false;
+}
+updatePHOption();
 $('save').onclick=save;
 $('sumMonth').onchange=renderSummary;
 

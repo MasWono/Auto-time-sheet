@@ -24,7 +24,7 @@ input,select,button{font:inherit}
 input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
 button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;cursor:pointer}
 .primary{background:var(--blue);color:white}.secondary{background:#eef4ff;color:var(--blue)}
-.codes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.codes{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .code{padding:14px 6px;background:#eaf1fb;color:#172033}.code.active{background:var(--blue);color:white}
 .code small{display:block;font-size:10px;font-weight:500;margin-top:4px}
 .otbox{display:flex;align-items:center;gap:10px}
@@ -69,6 +69,7 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <button class="code" data-code="T">T<small>Travel</small></button>
 <button class="code" data-code="TR">TR<small>Training</small></button>
 <button class="code" data-code="H">H<small>Holiday (0)</small></button>
+<button class="code" data-code="PH">PH<small>Public Holiday</small></button>
 </div>
 
 <label>OT (Hours)</label>
@@ -105,6 +106,7 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <label>Daily Rate</label><input id="dailyRate" type="number" min="0" step="0.01">
 <label>GRI (Attendance Allowance)</label><input id="gri" type="number" min="0" step="0.01">
 <label>OT Rate (per hour)</label><input id="otRate" type="number" min="0" step="0.01">
+<label>PH Rate (per day)</label><input id="phRate" type="number" min="0" step="0.01">
 <label>Currency</label><input id="currency" maxlength="5" value="USD">
 <p class="hint">Rates and records are stored only on this device. No name, employee ID, company account, or login is required.</p>
 <button id="saveSettings" class="primary" style="width:100%" type="button">Save Settings</button>
@@ -160,7 +162,7 @@ const today=new Date();
 $('date').value=localDateString(today);
 $('sumMonth').value=localMonthString(today);
 
-let settings=JSON.parse(localStorage.getItem(SET)||'{"daily":100,"gri":20,"ot":30,"currency":"USD"}');
+let settings=JSON.parse(localStorage.getItem(SET)||'{"daily":100,"gri":20,"ot":30,"ph":100,"currency":"USD"}');
 let records=JSON.parse(localStorage.getItem(KEY)||'[]');
 let selected='P';
 
@@ -193,6 +195,7 @@ function computeRecord(r){
   let base=0;
   if(r.code==='P') base=settings.daily;
   else if(r.code==='T'||r.code==='TR') base=settings.daily;
+  else if(r.code==='PH') base=settings.ph;
 
   return {
     base,
@@ -209,8 +212,8 @@ function monthCalc(ym){
   const hasH=monthHasH(ym);
   const days=daysInMonth(ym);
 
-  let p=0,t=0,tr=0,h=0;
-  let otHours=0,baseRaw=0,otPaid=0,otCarry=0;
+  let p=0,t=0,tr=0,h=0,ph=0;
+  let otHours=0,baseRaw=0,phPaid=0,otPaid=0,otCarry=0;
 
   rs.forEach(r=>{
     const c=computeRecord(r);
@@ -219,6 +222,7 @@ function monthCalc(ym){
     if(r.code==='T') t++;
     if(r.code==='TR') tr++;
     if(r.code==='H') h++;
+    if(r.code==='PH') ph++;
 
     otHours+=Number(r.ot||0);
 
@@ -227,7 +231,8 @@ function monthCalc(ym){
       return;
     }
 
-    baseRaw+=c.base;
+    if(r.code==='PH') phPaid+=c.base;
+    else baseRaw+=c.base;
     otPaid+=c.ot;
   });
 
@@ -243,11 +248,11 @@ function monthCalc(ym){
     basePaid=Math.min(baseRaw,30*settings.daily);
   }
 
-  const total=basePaid+previousGri+otPaid;
+  const total=basePaid+phPaid+previousGri+otPaid;
 
   return {
-    rs,days,hasH,p,t,tr,h,otHours,
-    basePaid,previousGri,otPaid,otCarry,total
+    rs,days,hasH,p,t,tr,h,ph,otHours,
+    basePaid,phPaid,previousGri,otPaid,otCarry,total
   };
 }
 
@@ -259,7 +264,7 @@ function renderCalc(){
     '<div>Daily Rate <span style="float:right">'+money(r.base)+'</span></div>'+
     '<div>OT ('+ot+' × '+money(settings.ot).replace(/ [A-Z]+$/,'')+') <span style="float:right">'+money(r.ot)+'</span></div>'+
     '<hr>'+
-    '<div class="hint">GRI earned by this P entry is paid in the following month.</div>'+
+    '<div class="hint">GRI is earned only by P entries and paid in the following month. PH entries earn no GRI.</div>'+
     '<strong>Total <span style="float:right">'+money(r.total)+'</span></strong>';
 
   if($('date').value){
@@ -277,9 +282,11 @@ function renderMini(){
     '<div class="stat"><span>T</span><b>'+c.t+' days</b></div>'+
     '<div class="stat"><span>TR</span><b>'+c.tr+' days</b></div>'+
     '<div class="stat"><span>H</span><b>'+c.h+' days</b></div>'+
+    '<div class="stat"><span>PH</span><b>'+c.ph+' days</b></div>'+
     '<div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div>'+
     '<div class="stat"><span>Previous GRI</span><b>'+money(c.previousGri)+'</b></div>'+
     '<div class="stat"><span>Daily-rate portion</span><b>'+money(c.basePaid)+'</b></div>'+
+    '<div class="stat"><span>PH Earnings</span><b>'+money(c.phPaid)+'</b></div>'+
     '<div class="stat"><span>OT paid this period</span><b>'+money(c.otPaid)+'</b></div>'+
     '<div class="stat"><span>Total</span><b>'+money(c.total)+'</b></div>';
 }
@@ -297,9 +304,11 @@ function renderSummary(){
     '<div class="stat"><span>T / Travel</span><b>'+c.t+' days</b></div>'+
     '<div class="stat"><span>TR / Training</span><b>'+c.tr+' days</b></div>'+
     '<div class="stat"><span>H / Holiday</span><b>'+c.h+' days</b></div>'+
+    '<div class="stat"><span>PH / Public Holiday</span><b>'+c.ph+' days</b></div>'+
     '<div class="stat"><span>OT</span><b>'+c.otHours+' hours</b></div>'+
     '<div class="stat"><span>Previous GRI</span><b>'+money(c.previousGri)+'</b></div>'+
     '<div class="stat"><span>Daily-rate portion</span><b>'+money(c.basePaid)+'</b></div>'+
+    '<div class="stat"><span>PH Earnings</span><b>'+money(c.phPaid)+'</b></div>'+
     '<div class="stat"><span>OT paid this period</span><b>'+money(c.otPaid)+'</b></div>'+
     '<div class="total"><div>Total Earnings</div><strong>'+money(c.total)+'</strong></div>';
 
@@ -385,7 +394,7 @@ document.querySelectorAll('.code').forEach(b=>{
     b.classList.add('active');
     selected=b.dataset.code;
 
-    if(selected==='H')$('ot').value=0;
+    if(selected==='H'||selected==='PH')$('ot').value=0;
 
     renderCalc();
   };
@@ -420,6 +429,7 @@ $('saveSettings').onclick=()=>{
     daily:Number($('dailyRate').value||0),
     gri:Number($('gri').value||0),
     ot:Number($('otRate').value||0),
+    ph:Number($('phRate').value||0),
     currency:($('currency').value||'USD').toUpperCase()
   };
 
@@ -433,14 +443,16 @@ $('saveSettings').onclick=()=>{
 };
 
 $('export').onclick=()=>{
-  let csv='Date,Code,OT Hours,Daily Rate,OT Earnings,Total\\n';
+  let csv='Date,Code,OT Hours,Daily Rate,PH Earnings,OT Earnings,Total\
+';
 
   records
     .slice()
     .sort((a,b)=>a.date.localeCompare(b.date))
     .forEach(r=>{
       const c=computeRecord(r);
-      csv+=`${r.date},${r.code},${r.ot||0},${c.base},${c.ot},${c.total}\\n`;
+      csv+=`${r.date},${r.code},${r.ot||0},${c.base},${r.code==='PH'?c.base:0},${c.ot},${c.total}\
+`;
     });
 
   const a=document.createElement('a');
@@ -473,6 +485,7 @@ document.querySelectorAll('nav button').forEach(b=>{
 $('dailyRate').value=settings.daily;
 $('gri').value=settings.gri;
 $('otRate').value=settings.ot;
+$('phRate').value=settings.ph||0;
 $('currency').value=settings.currency;
 
 renderCalc();

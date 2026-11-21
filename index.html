@@ -72,6 +72,7 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <button class="code" data-code="PH">PH<small>Public Holiday</small></button>
 </div>
 
+<label style="margin-top:10px"><input id="addPH" type="checkbox" style="width:auto"> Also Public Holiday (PH) — additional PH Rate</label>
 <label>OT (Hours)</label>
 <div class="otbox">
 <button id="minus" type="button">−</button>
@@ -196,11 +197,13 @@ function computeRecord(r){
   if(r.code==='P') base=settings.daily;
   else if(r.code==='T'||r.code==='TR') base=settings.daily;
   else if(r.code==='PH') base=settings.ph;
+  const phExtra = (r.code!=='PH' && r.ph===true) ? settings.ph : 0;
 
   return {
     base,
+    phExtra,
     ot:ot*settings.ot,
-    total:base+(ot*settings.ot)
+    total:base+phExtra+(ot*settings.ot)
   };
 }
 
@@ -222,7 +225,7 @@ function monthCalc(ym){
     if(r.code==='T') t++;
     if(r.code==='TR') tr++;
     if(r.code==='H') h++;
-    if(r.code==='PH') ph++;
+    if(r.code==='PH' || r.ph===true) ph++;
 
     otHours+=Number(r.ot||0);
 
@@ -232,7 +235,7 @@ function monthCalc(ym){
     }
 
     if(r.code==='PH') phPaid+=c.base;
-    else baseRaw+=c.base;
+    else { baseRaw+=c.base; phPaid+=c.phExtra; }
     otPaid+=c.ot;
   });
 
@@ -258,10 +261,11 @@ function monthCalc(ym){
 
 function renderCalc(){
   const ot=Number($('ot').value||0);
-  const r=computeRecord({code:selected,ot});
+  const r=computeRecord({code:selected,ot,ph:$('addPH').checked});
 
   $('calc').innerHTML=
     '<div>Daily Rate <span style="float:right">'+money(r.base)+'</span></div>'+
+    (r.phExtra?'<div>PH Earnings <span style="float:right">'+money(r.phExtra)+'</span></div>':'')+
     '<div>OT ('+ot+' × '+money(settings.ot).replace(/ [A-Z]+$/,'')+') <span style="float:right">'+money(r.ot)+'</span></div>'+
     '<hr>'+
     '<div class="hint">GRI is earned only by P entries and paid in the following month. PH entries earn no GRI.</div>'+
@@ -354,6 +358,7 @@ function save(){
     id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),
     date,
     code:selected,
+    ph: (selected!=='PH' && $('addPH').checked),
     ot
   });
 
@@ -369,12 +374,14 @@ function editRec(id){
 
   $('date').value=r.date;
   $('ot').value=Number(r.ot||0);
+  $('addPH').checked=!!r.ph;
 
   document.querySelectorAll('.code').forEach(x=>{
     x.classList.toggle('active',x.dataset.code===r.code);
   });
 
   selected=r.code;
+  $('addPH').disabled=(selected==='H'||selected==='PH');
   renderCalc();
   renderMini();
 
@@ -395,6 +402,8 @@ document.querySelectorAll('.code').forEach(b=>{
     selected=b.dataset.code;
 
     if(selected==='H'||selected==='PH')$('ot').value=0;
+    $('addPH').checked=false;
+    $('addPH').disabled=(selected==='H'||selected==='PH');
 
     renderCalc();
   };
@@ -416,6 +425,8 @@ $('date').onchange=()=>{
 };
 
 $('ot').oninput=renderCalc;
+$('addPH').disabled=false;
+$('addPH').onchange=renderCalc;
 $('save').onclick=save;
 $('sumMonth').onchange=renderSummary;
 
@@ -451,7 +462,7 @@ $('export').onclick=()=>{
     .sort((a,b)=>a.date.localeCompare(b.date))
     .forEach(r=>{
       const c=computeRecord(r);
-      csv+=`${r.date},${r.code},${r.ot||0},${c.base},${r.code==='PH'?c.base:0},${c.ot},${c.total}\
+      csv+=`${r.date},${r.code}${r.ph?' + PH':''},${r.ot||0},${r.code==='PH'?0:c.base},${r.code==='PH'?c.base:c.phExtra},${c.ot},${c.total}\
 `;
     });
 

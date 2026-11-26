@@ -30,6 +30,10 @@ button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;cursor:poin
 .otbox{display:flex;align-items:center;gap:10px}
 .otbox button{width:45px;height:45px;padding:0;font-size:24px;background:#eef4ff;color:var(--blue)}
 .otnum{text-align:center;font-weight:700;font-size:18px}
+.otbox.ot-enabled input{background:#dff7e8;border:2px solid #16a34a;color:#166534}
+.otbox.ot-disabled input{background:#ffe3e3;border:2px solid #dc2626;color:#991b1b}
+.otbox.ot-disabled button{background:#ffe3e3;color:#991b1b;cursor:not-allowed;opacity:.65}
+.code.ph-disabled{opacity:.45;cursor:not-allowed}
 .total{background:var(--green);border-radius:16px;padding:14px;margin-top:14px}.total strong{font-size:24px}
 .stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 .stat:last-child{border-bottom:0}
@@ -72,14 +76,9 @@ nav button{background:transparent;color:var(--muted)}nav button.active{color:var
 <button class="code" data-code="PH">PH<small>Public Holiday</small></button>
 </div>
 
-<div id="phOption" style="display:block;background:#fff8e8;border:1px solid #f0d69a;border-radius:12px;padding:12px;margin-top:10px;margin-bottom:10px">
-<label style="margin:0;display:flex;align-items:center;gap:10px;color:#172033;font-weight:700">
-<input id="addPH" type="checkbox" style="width:22px;height:22px;flex:0 0 auto;margin:0">
-<span>Add Public Holiday (PH) — additional PH Rate</span>
-</label><div class="hint" style="margin-top:6px">Available when code P is selected. P keeps Daily Rate and GRI; PH adds PH Rate.</div>
-</div>
+<div id="phHint" class="hint" style="margin-top:10px">PH can only be selected when P is active. Select P first, then tap PH to add the PH Rate.</div>
 <label>OT (Hours)</label>
-<div class="otbox">
+<div id="otbox" class="otbox ot-enabled">
 <button id="minus" type="button">−</button>
 <input id="ot" class="otnum" type="number" min="0" step="1" value="0">
 <button id="plus" type="button">+</button>
@@ -270,22 +269,23 @@ function monthCalc(ym){
 
 function renderCalc(){
   const ot=Number($('ot').value||0);
-  const r=computeRecord({code:selected,ot,ph:$('addPH').checked});
+  const r=computeRecord({code:selected,ot,ph:addPH});
 
   $('calc').innerHTML=
-    '<div>Daily Rate <span style="float:right">'+money(r.base)+'</span></div>'+
+    '<div>Daily Rate <span style="float:right">'+money(r.base)+'</span></div>'+ 
     (r.phExtra?'<div>PH Earnings <span style="float:right">'+money(r.phExtra)+'</span></div>':'')+
-    '<div>OT ('+ot+' × '+money(settings.ot).replace(/ [A-Z]+$/,'')+') <span style="float:right">'+money(r.ot)+'</span></div>'+
-    '<hr>'+
-    '<div class="hint">GRI is earned only by P entries and paid in the following month. PH entries earn no GRI.</div>'+
+    '<div>OT ('+ot+' × '+money(settings.ot).replace(/ [A-Z]+$/,'')+') <span style="float:right">'+money(r.ot)+'</span></div>'+ 
+    '<hr>'+ 
+    '<div class="hint">GRI is earned only by P entries and paid in the following month. PH entries earn no GRI.</div>'+ 
     '<strong>Total <span style="float:right">'+money(r.total)+'</span></strong>';
 
   if($('date').value){
     $('monthLabel').value=new Date($('date').value+'T00:00:00')
       .toLocaleString(undefined,{month:'long',year:'numeric'});
   }
+  updateOTState();
+  updatePHState();
 }
-
 function renderMini(){
   const ym=monthOf($('date').value);
   const c=monthCalc(ym);
@@ -390,6 +390,7 @@ function save(){
 
   if(archives[monthOf(date)]){alert('This month is archived and locked. Entry changes are not allowed.');return;}
   const ot=Math.max(0,Number($('ot').value||0));
+  if(selected!=='P' && ot!==0){alert('OT is only allowed when P is selected.');$('ot').value=0;renderCalc();return;}
   if(!Number.isInteger(ot)){
     alert('OT must be entered in whole hours (1-hour increments).');
     return;
@@ -401,7 +402,7 @@ function save(){
     id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())),
     date,
     code:selected,
-    ph: (selected!=='PH' && $('addPH').checked),
+    ph: (selected==='P' && addPH),
     ot
   });
 
@@ -414,19 +415,20 @@ function save(){
 function editRec(id){
   const r=records.find(x=>x.id===id);
   if(!r)return;
+  if(r.code==='PH'){alert('This legacy standalone PH entry cannot be edited under the new P + PH selection rule. The saved record is preserved.');return;}
   if(archives[monthOf(r.date)]){alert('This month is archived and locked.');return;}
 
   $('date').value=r.date;
   $('ot').value=Number(r.ot||0);
-  $('addPH').checked=!!r.ph;
-  updatePHOption();
+  addPH=!!r.ph;
 
   document.querySelectorAll('.code').forEach(x=>{
     x.classList.toggle('active',x.dataset.code===r.code);
   });
 
   selected=r.code;
-  updatePHOption();
+  if(selected!=='P') addPH=false;
+  $('ot').value=selected==='P'?Number(r.ot||0):0;
   renderCalc();
   renderMini();
 
@@ -442,26 +444,52 @@ function delRec(id){
   renderMini();
 }
 
+let addPH=false;
+function updatePHState(){
+  const phButton=document.querySelector('[data-code="PH"]');
+  phButton.classList.toggle('active',selected==='P' && addPH);
+  phButton.classList.toggle('ph-disabled',selected!=='P');
+  phButton.setAttribute('aria-disabled',selected!=='P');
+}
+function updateOTState(){
+  const allowed=selected==='P';
+  $('otbox').classList.toggle('ot-enabled',allowed);
+  $('otbox').classList.toggle('ot-disabled',!allowed);
+  $('ot').disabled=!allowed;
+  $('plus').disabled=!allowed;
+  $('minus').disabled=!allowed;
+  if(!allowed && Number($('ot').value||0)!==0) $('ot').value=0;
+}
+
 document.querySelectorAll('.code').forEach(b=>{
   b.onclick=()=>{
+    const code=b.dataset.code;
+    if(code==='PH'){
+      if(selected!=='P')return;
+      addPH=!addPH;
+      updatePHState();
+      renderCalc();
+      return;
+    }
     document.querySelectorAll('.code').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
-    selected=b.dataset.code;
-
-    if(selected==='H'||selected==='PH')$('ot').value=0;
-    $('addPH').checked=false;
-    updatePHOption();
-
+    selected=code;
+    if(selected!=='P')addPH=false;
+    if(selected!=='P')$('ot').value=0;
+    updatePHState();
+    updateOTState();
     renderCalc();
   };
 });
 
 $('minus').onclick=()=>{
+  if(selected!=='P')return;
   $('ot').value=Math.max(0,Number($('ot').value||0)-1);
   renderCalc();
 };
 
 $('plus').onclick=()=>{
+  if(selected!=='P')return;
   $('ot').value=Number($('ot').value||0)+1;
   renderCalc();
 };
@@ -471,15 +499,7 @@ $('date').onchange=()=>{
   renderMini();
 };
 
-$('ot').oninput=renderCalc;
-$('addPH').onchange=renderCalc;
-function updatePHOption(){
-  const eligible=(selected==='P');
-  $('phOption').style.display=eligible?'block':'none';
-  $('addPH').disabled=!eligible;
-  if(!eligible) $('addPH').checked=false;
-}
-updatePHOption();
+$('ot').oninput=()=>{if(selected!=='P')$('ot').value=0;renderCalc();};
 $('save').onclick=save;
 $('sumMonth').onchange=renderSummary;
 
